@@ -719,6 +719,10 @@ pub struct ProjectPanelSettingsContent {
     ///
     /// Default: true
     pub folder_icons: Option<bool>,
+    /// Whether to show open/close arrows for directories in the project panel.
+    ///
+    /// Default: false
+    pub folder_arrows: Option<bool>,
     /// Whether to show the git status in the project panel.
     ///
     /// Default: true

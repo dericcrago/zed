@@ -764,6 +764,8 @@
     "file_icons": true,
     // Whether to show folder icons or chevrons for directories in the project panel.
     "folder_icons": true,
+    // Whether to show open/close arrows for directories in the project panel.
+    "folder_arrows": false,
     // Whether to show the git status in the project panel.
     "git_status": true,
     // Amount of indentation for nested items.
@@ -879,7 +881,8 @@
     "file_icons": true,
     // Whether to show folder icons or chevrons for directories in the outline panel.
     "folder_icons": true,
-    // Whether to show the git status in the outline panel.
+    // Whether to show open/close arrows for directories in the outline panel.
+    "folder_arrows": false,
     "git_status": true,
     // Amount of indentation for nested items.
     "indent_size": 20,
@@ -950,6 +953,8 @@
     //
     // Default: true
     "folder_icons": true,
+    // Whether to show open/close arrows for directories in the project panel.
+    "folder_arrows": false,
     // What branch name to use if `init.defaultBranch` is not set
     //
     // Default: main

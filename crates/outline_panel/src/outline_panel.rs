@@ -2346,12 +2346,21 @@ impl OutlinePanel {
                 let name = self.entry_name(worktree_id, entry, cx);
                 let color =
                     entry_git_aware_label_color(entry.git_summary, entry.is_ignored, is_active);
-                let icon = if settings.file_icons {
+                let mut icon = if settings.file_icons {
                     FileIcons::get_icon(entry.path.as_std_path(), cx)
                         .map(|icon_path| Icon::from_path(icon_path).color(color).into_any_element())
                 } else {
                     None
                 };
+
+                let show_folder_icons = settings.folder_icons;
+                let show_folder_arrows = settings.folder_arrows || !settings.folder_icons;
+
+                if show_folder_icons && show_folder_arrows {
+                    let spacer = h_flex().size(IconSize::default().rems()).invisible().flex_none().into_any_element();
+                    icon = Some(h_flex().child(spacer).child(icon.unwrap_or_else(empty_icon)).into_any_element());
+                }
+
                 (
                     ElementId::from(entry.id.to_proto() as usize),
                     HighlightedLabel::new(
@@ -2377,13 +2386,31 @@ impl OutlinePanel {
                     directory.entry.is_ignored,
                     is_active,
                 );
-                let icon = if settings.folder_icons {
+                let show_folder_icons = settings.folder_icons;
+                let show_folder_arrows = settings.folder_arrows || !settings.folder_icons;
+
+                let folder_icon = if show_folder_icons {
                     FileIcons::get_folder_icon(is_expanded, directory.entry.path.as_std_path(), cx)
+                        .map(Icon::from_path)
+                        .map(|icon| icon.color(color).into_any_element())
                 } else {
+                    None
+                };
+
+                let chevron_icon = if show_folder_arrows {
                     FileIcons::get_chevron_icon(is_expanded, cx)
-                }
-                .map(Icon::from_path)
-                .map(|icon| icon.color(color).into_any_element());
+                        .map(Icon::from_path)
+                        .map(|icon| icon.color(color).into_any_element())
+                } else {
+                    None
+                };
+
+                let icon = match (chevron_icon, folder_icon) {
+                    (Some(chevron), Some(folder)) => Some(h_flex().child(chevron).child(folder).into_any_element()),
+                    (Some(chevron), None) => Some(chevron),
+                    (None, Some(folder)) => Some(folder),
+                    (None, None) => None,
+                };
                 (
                     ElementId::from(directory.entry.id.to_proto() as usize),
                     HighlightedLabel::new(
@@ -2399,7 +2426,7 @@ impl OutlinePanel {
             }
             FsEntry::ExternalFile(external_file) => {
                 let color = entry_label_color(is_active);
-                let (icon, name) = match self.buffer_snapshot_for_id(external_file.buffer_id, cx) {
+                let (mut icon, name) = match self.buffer_snapshot_for_id(external_file.buffer_id, cx) {
                     Some(buffer_snapshot) => match buffer_snapshot.file() {
                         Some(file) => {
                             let path = file.path();
@@ -2416,6 +2443,15 @@ impl OutlinePanel {
                     },
                     None => (None, "Unknown buffer".to_string()),
                 };
+
+                let show_folder_icons = settings.folder_icons;
+                let show_folder_arrows = settings.folder_arrows || !settings.folder_icons;
+
+                if show_folder_icons && show_folder_arrows {
+                    let spacer = h_flex().size(IconSize::default().rems()).invisible().flex_none().into_any_element();
+                    icon = Some(h_flex().child(spacer).child(icon.unwrap_or_else(empty_icon)).into_any_element());
+                }
+
                 (
                     ElementId::from(external_file.buffer_id.to_proto() as usize),
                     HighlightedLabel::new(
@@ -2474,13 +2510,31 @@ impl OutlinePanel {
                 .map(|entry| entry.git_summary)
                 .unwrap_or_default();
             let color = entry_git_aware_label_color(git_status, is_ignored, is_active);
-            let icon = if settings.folder_icons {
+            let show_folder_icons = settings.folder_icons;
+            let show_folder_arrows = settings.folder_arrows || !settings.folder_icons;
+
+            let folder_icon = if show_folder_icons {
                 FileIcons::get_folder_icon(is_expanded, &Path::new(&name), cx)
+                    .map(Icon::from_path)
+                    .map(|icon| icon.color(color).into_any_element())
             } else {
+                None
+            };
+
+            let chevron_icon = if show_folder_arrows {
                 FileIcons::get_chevron_icon(is_expanded, cx)
-            }
-            .map(Icon::from_path)
-            .map(|icon| icon.color(color).into_any_element());
+                    .map(Icon::from_path)
+                    .map(|icon| icon.color(color).into_any_element())
+            } else {
+                None
+            };
+
+            let icon = match (chevron_icon, folder_icon) {
+                (Some(chevron), Some(folder)) => Some(h_flex().child(chevron).child(folder).into_any_element()),
+                (Some(chevron), None) => Some(chevron),
+                (None, Some(folder)) => Some(folder),
+                (None, None) => None,
+            };
             (
                 ElementId::from(
                     folded_dir

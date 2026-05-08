@@ -269,6 +269,7 @@ impl DiagnosticCount {
 struct EntryDetails {
     filename: String,
     icon: Option<SharedString>,
+    chevron: Option<SharedString>,
     path: Arc<RelPath>,
     depth: usize,
     kind: EntryKind,
@@ -5410,6 +5411,9 @@ impl ProjectPanel {
             (entry_id.to_proto() as usize).into()
         };
 
+        let show_folder_arrows = settings.folder_arrows || !settings.folder_icons;
+        let show_folder_icons = settings.folder_icons;
+
         div()
             .id(id.clone())
             .relative()
@@ -5811,55 +5815,74 @@ impl ProjectPanel {
                             )
                         },
                     )
-                    .child(if let Some(icon) = &icon {
-                        if let Some((_, decoration_color)) =
-                            entry_diagnostic_aware_icon_decoration_and_color(diagnostic_severity)
-                        {
-                            let is_warning = diagnostic_severity
-                                .map(|severity| matches!(severity, DiagnosticSeverity::WARNING))
-                                .unwrap_or(false);
-                            div().child(
-                                DecoratedIcon::new(
-                                    Icon::from_path(icon.clone()).color(Color::Muted),
-                                    Some(
-                                        IconDecoration::new(
-                                            if kind.is_file() {
-                                                if is_warning {
-                                                    IconDecorationKind::Triangle
-                                                } else {
-                                                    IconDecorationKind::X
-                                                }
-                                            } else {
-                                                IconDecorationKind::Dot
-                                            },
-                                            bg_color,
-                                            cx,
-                                        )
-                                        .group_name(Some(GROUP_NAME.into()))
-                                        .knockout_hover_color(bg_hover_color)
-                                        .color(decoration_color.color(cx))
-                                        .position(Point {
-                                            x: px(-2.),
-                                            y: px(-2.),
-                                        }),
-                                    ),
-                                )
-                                .into_any_element(),
+                    .when_some(details.chevron.clone(), |this, chevron| {
+                        this.child(
+                            h_flex()
+                                .child(Icon::from_path(chevron.to_string()).color(Color::Muted))
+                        )
+                    })
+                    .when(
+                        details.chevron.is_none() && show_folder_arrows && show_folder_icons && !kind.is_dir(),
+                        |this| {
+                            this.child(
+                                h_flex()
+                                    .size(IconSize::default().rems())
+                                    .invisible()
+                                    .flex_none(),
                             )
+                        },
+                    )
+                    .when(icon.is_some() || details.chevron.is_none(), |this| {
+                        this.child(if let Some(icon) = &icon {
+                            if let Some((_, decoration_color)) =
+                                entry_diagnostic_aware_icon_decoration_and_color(diagnostic_severity)
+                            {
+                                let is_warning = diagnostic_severity
+                                    .map(|severity| matches!(severity, DiagnosticSeverity::WARNING))
+                                    .unwrap_or(false);
+                                div().child(
+                                    DecoratedIcon::new(
+                                        Icon::from_path(icon.clone()).color(Color::Muted),
+                                        Some(
+                                            IconDecoration::new(
+                                                if kind.is_file() {
+                                                    if is_warning {
+                                                        IconDecorationKind::Triangle
+                                                    } else {
+                                                        IconDecorationKind::X
+                                                    }
+                                                } else {
+                                                    IconDecorationKind::Dot
+                                                },
+                                                bg_color,
+                                                cx,
+                                            )
+                                            .group_name(Some(GROUP_NAME.into()))
+                                            .knockout_hover_color(bg_hover_color)
+                                            .color(decoration_color.color(cx))
+                                            .position(Point {
+                                                x: px(-2.),
+                                                y: px(-2.),
+                                            }),
+                                        ),
+                                    )
+                                    .into_any_element(),
+                                )
+                            } else {
+                                h_flex().child(Icon::from_path(icon.to_string()).color(Color::Muted))
+                            }
+                        } else if let Some((icon_name, color)) =
+                            entry_diagnostic_aware_icon_name_and_color(diagnostic_severity)
+                        {
+                            h_flex()
+                                .size(IconSize::default().rems())
+                                .child(Icon::new(icon_name).color(color).size(IconSize::Small))
                         } else {
-                            h_flex().child(Icon::from_path(icon.to_string()).color(Color::Muted))
-                        }
-                    } else if let Some((icon_name, color)) =
-                        entry_diagnostic_aware_icon_name_and_color(diagnostic_severity)
-                    {
-                        h_flex()
-                            .size(IconSize::default().rems())
-                            .child(Icon::new(icon_name).color(color).size(IconSize::Small))
-                    } else {
-                        h_flex()
-                            .size(IconSize::default().rems())
-                            .invisible()
-                            .flex_none()
+                            h_flex()
+                                .size(IconSize::default().rems())
+                                .invisible()
+                                .flex_none()
+                        })
                     })
                     .child(if show_editor {
                         h_flex().h_6().w_full().child(self.filename_editor.clone())
@@ -6159,9 +6182,13 @@ impl ProjectPanel {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> EntryDetails {
-        let (show_file_icons, show_folder_icons) = {
+        let (show_file_icons, show_folder_icons, show_folder_arrows) = {
             let settings = ProjectPanelSettings::get_global(cx);
-            (settings.file_icons, settings.folder_icons)
+            (
+                settings.file_icons,
+                settings.folder_icons,
+                settings.folder_arrows || !settings.folder_icons,
+            )
         };
 
         let expanded_entry_ids = self
@@ -6184,7 +6211,18 @@ impl ProjectPanel {
                 if show_folder_icons {
                     FileIcons::get_folder_icon(is_expanded, entry.path.as_std_path(), cx)
                 } else {
+                    None
+                }
+            }
+        };
+
+        let chevron = match entry.kind {
+            EntryKind::File => None,
+            _ => {
+                if show_folder_arrows {
                     FileIcons::get_chevron_icon(is_expanded, cx)
+                } else {
+                    None
                 }
             }
         };
@@ -6236,6 +6274,7 @@ impl ProjectPanel {
         EntryDetails {
             filename,
             icon,
+            chevron,
             path: entry.path.clone(),
             depth,
             kind: entry.kind,

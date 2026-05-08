@@ -22,6 +22,7 @@ pub struct GitPanelSettings {
     pub status_style: StatusStyle,
     pub file_icons: bool,
     pub folder_icons: bool,
+    pub folder_arrows: bool,
     pub scrollbar: ScrollbarSettings,
     pub fallback_branch_name: String,
     pub sort_by_path: bool,
@@ -63,6 +64,7 @@ impl Settings for GitPanelSettings {
             status_style: git_panel.status_style.unwrap(),
             file_icons: git_panel.file_icons.unwrap(),
             folder_icons: git_panel.folder_icons.unwrap(),
+            folder_arrows: git_panel.folder_arrows.unwrap(),
             scrollbar: ScrollbarSettings {
                 show: git_panel
                     .scrollbar

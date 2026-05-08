@@ -668,6 +668,7 @@ pub struct GitPanelSettingsContent {
     ///
     /// Default: true
     pub folder_icons: Option<bool>,
+    pub folder_arrows: Option<bool>,
 
     /// How and when the scrollbar should be displayed.
     ///
@@ -1011,6 +1012,7 @@ pub struct OutlinePanelSettingsContent {
     ///
     /// Default: true
     pub folder_icons: Option<bool>,
+    pub folder_arrows: Option<bool>,
     /// Whether to show the git status in the outline panel.
     ///
     /// Default: true
