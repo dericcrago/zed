@@ -715,10 +715,18 @@ pub struct ProjectPanelSettingsContent {
     ///
     /// Default: true
     pub file_icons: Option<bool>,
-    /// Whether to show folder icons or chevrons for directories in the project panel.
+    /// Whether to show folder icons for directories in the project panel.
+    ///
+    /// When disabled, directories show an expand/collapse arrow instead.
     ///
     /// Default: true
     pub folder_icons: Option<bool>,
+    /// Whether to also show an expand/collapse arrow next to directories in the project panel.
+    ///
+    /// Arrows are always shown when `folder_icons` is disabled.
+    ///
+    /// Default: false
+    pub folder_arrows: Option<bool>,
     /// Whether to show the git status in the project panel.
     ///
     /// Default: true

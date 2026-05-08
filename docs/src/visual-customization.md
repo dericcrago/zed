@@ -458,7 +458,8 @@ Project panel can be shown/hidden with {#action project_panel::ToggleFocus} ({#k
     "dock": "left",                 // Position of the dock (left, right)
     "entry_spacing": "comfortable", // Vertical spacing (comfortable, standard)
     "file_icons": true,             // Show/hide file icons
-    "folder_icons": true,           // Show/hide folder icons
+    "folder_icons": true,           // Show/hide folder icons (chevrons shown if disabled)
+    "folder_arrows": false,         // Also show chevrons next to dirs
     "git_status": true,             // Indicate new/updated files
     "indent_size": 20,              // Pixels for each successive indent
     "auto_reveal_entries": true,    // Show file in panel when activating its buffer
@@ -559,6 +560,9 @@ See [Terminal settings](./reference/all-settings.md#terminal) for additional non
     "dock": "left",               // Where to dock: left, right
     "default_width": 360,         // Default width of the git panel.
     "status_style": "icon",       // label_color, icon
+    "file_icons": false,          // Show/hide file icons
+    "folder_icons": true,         // Show/hide folder icons (chevrons shown if disabled)
+    "folder_arrows": false,       // Also show chevrons next to dirs
     "sort_by_path": false,        // Sort by path (false) or status (true)
     "scrollbar": {
       "show": null                // Show/hide: (auto, system, always, never)
@@ -577,7 +581,8 @@ See [Terminal settings](./reference/all-settings.md#terminal) for additional non
     "default_width": 300,         // Default width of the git panel
     "dock": "left",               // Where to dock: left, right
     "file_icons": true,           // Show/hide file_icons
-    "folder_icons": true,         // Show file_icons (true), chevrons (false) for dirs
+    "folder_icons": true,         // Show/hide folder icons (chevrons shown if disabled)
+    "folder_arrows": false,       // Also show chevrons next to dirs
     "git_status": true,           // Show git status
     "indent_size": 20,            // Indentation for nested items (pixels)
     "indent_guides": {

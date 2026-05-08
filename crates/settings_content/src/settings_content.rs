@@ -664,10 +664,18 @@ pub struct GitPanelSettingsContent {
     /// Default: false
     pub file_icons: Option<bool>,
 
-    /// Whether to show folder icons or chevrons for directories in the git panel.
+    /// Whether to show folder icons for directories in the git panel.
+    ///
+    /// When disabled, directories show an expand/collapse arrow instead.
     ///
     /// Default: true
     pub folder_icons: Option<bool>,
+    /// Whether to also show an expand/collapse arrow next to directories in the git panel.
+    ///
+    /// Arrows are always shown when `folder_icons` is disabled.
+    ///
+    /// Default: false
+    pub folder_arrows: Option<bool>,
 
     /// How and when the scrollbar should be displayed.
     ///
@@ -1007,10 +1015,18 @@ pub struct OutlinePanelSettingsContent {
     ///
     /// Default: true
     pub file_icons: Option<bool>,
-    /// Whether to show folder icons or chevrons for directories in the outline panel.
+    /// Whether to show folder icons for directories in the outline panel.
+    ///
+    /// When disabled, directories show an expand/collapse arrow instead.
     ///
     /// Default: true
     pub folder_icons: Option<bool>,
+    /// Whether to also show an expand/collapse arrow next to directories in the outline panel.
+    ///
+    /// Arrows are always shown when `folder_icons` is disabled.
+    ///
+    /// Default: false
+    pub folder_arrows: Option<bool>,
     /// Whether to show the git status in the outline panel.
     ///
     /// Default: true

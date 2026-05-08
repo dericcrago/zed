@@ -748,6 +748,7 @@ impl GitPanel {
             let mut was_tree_view = GitPanelSettings::get_global(cx).tree_view;
             let mut was_file_icons = GitPanelSettings::get_global(cx).file_icons;
             let mut was_folder_icons = GitPanelSettings::get_global(cx).folder_icons;
+            let mut was_folder_arrows = GitPanelSettings::get_global(cx).folder_arrows;
             let mut was_diff_stats = GitPanelSettings::get_global(cx).diff_stats;
             cx.observe_global_in::<SettingsStore>(window, move |this, window, cx| {
                 let settings = GitPanelSettings::get_global(cx);
@@ -755,6 +756,7 @@ impl GitPanel {
                 let tree_view = settings.tree_view;
                 let file_icons = settings.file_icons;
                 let folder_icons = settings.folder_icons;
+                let folder_arrows = settings.folder_arrows;
                 let diff_stats = settings.diff_stats;
                 if tree_view != was_tree_view {
                     this.view_mode = GitPanelViewMode::from_settings(cx);
@@ -768,13 +770,17 @@ impl GitPanel {
                 if (diff_stats != was_diff_stats) || update_entries {
                     this.update_visible_entries(window, cx);
                 }
-                if file_icons != was_file_icons || folder_icons != was_folder_icons {
+                if file_icons != was_file_icons
+                    || folder_icons != was_folder_icons
+                    || folder_arrows != was_folder_arrows
+                {
                     cx.notify();
                 }
                 was_sort_by_path = sort_by_path;
                 was_tree_view = tree_view;
                 was_file_icons = file_icons;
                 was_folder_icons = folder_icons;
+                was_folder_arrows = folder_arrows;
                 was_diff_stats = diff_stats;
             })
             .detach();
@@ -6110,10 +6116,22 @@ impl GitPanel {
             )
         };
 
+        // In tree view, file rows need a chevron-sized column whenever directory rows show
+        // both a chevron and a folder icon, so that the icons line up in a column.
+        let needs_chevron_column = tree_view && settings.folder_icons && settings.folder_arrows;
+
         let name_row = h_flex()
             .min_w_0()
             .flex_1()
             .gap_1()
+            .when(needs_chevron_column, |this| {
+                this.child(
+                    h_flex()
+                        .size(IconSize::Small.rems())
+                        .invisible()
+                        .flex_none(),
+                )
+            })
             .when(settings.file_icons, |this| {
                 this.child(
                     file_icon
@@ -6300,23 +6318,35 @@ impl GitPanel {
         };
 
         let settings = GitPanelSettings::get_global(cx);
+
         let folder_icon = if settings.folder_icons {
-            FileIcons::get_folder_icon(entry.expanded, entry.key.path.as_std_path(), cx)
+            let icon = FileIcons::get_folder_icon(entry.expanded, entry.key.path.as_std_path(), cx)
+                .map(Icon::from_path)
+                .unwrap_or_else(|| {
+                    Icon::new(if entry.expanded {
+                        IconName::FolderOpen
+                    } else {
+                        IconName::Folder
+                    })
+                });
+            Some(icon.size(IconSize::Small).color(Color::Muted))
         } else {
-            FileIcons::get_chevron_icon(entry.expanded, cx)
+            None
         };
-        let fallback_folder_icon = if settings.folder_icons {
-            if entry.expanded {
-                IconName::FolderOpen
-            } else {
-                IconName::Folder
-            }
+
+        let chevron_icon = if settings.show_folder_arrows() {
+            let icon = FileIcons::get_chevron_icon(entry.expanded, cx)
+                .map(Icon::from_path)
+                .unwrap_or_else(|| {
+                    Icon::new(if entry.expanded {
+                        IconName::ChevronDown
+                    } else {
+                        IconName::ChevronRight
+                    })
+                });
+            Some(icon.size(IconSize::Small).color(Color::Muted))
         } else {
-            if entry.expanded {
-                IconName::ChevronDown
-            } else {
-                IconName::ChevronRight
-            }
+            None
         };
 
         let stage_status = if let Some(repo) = &self.active_repository {
@@ -6338,19 +6368,8 @@ impl GitPanel {
             .min_w_0()
             .gap_1()
             .pl(px(entry.depth as f32 * TREE_INDENT))
-            .child(
-                folder_icon
-                    .map(|folder_icon| {
-                        Icon::from_path(folder_icon)
-                            .size(IconSize::Small)
-                            .color(Color::Muted)
-                    })
-                    .unwrap_or_else(|| {
-                        Icon::new(fallback_folder_icon)
-                            .size(IconSize::Small)
-                            .color(Color::Muted)
-                    }),
-            )
+            .when_some(chevron_icon, |this, icon| this.child(icon))
+            .when_some(folder_icon, |this, icon| this.child(icon))
             .child(self.entry_label(entry.name.clone(), label_color).truncate());
 
         h_flex()

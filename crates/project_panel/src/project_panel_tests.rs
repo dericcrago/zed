@@ -10884,3 +10884,87 @@ async fn test_delete_prompt_escapes_markdown_in_file_name(cx: &mut gpui::TestApp
         "Are you sure you want to permanently delete `__somefile__`?"
     );
 }
+
+#[gpui::test]
+async fn test_folder_arrows_settings(cx: &mut gpui::TestAppContext) {
+    init_test(cx);
+
+    let fs = FakeFs::new(cx.executor());
+    fs.insert_tree(
+        "/root",
+        json!({
+            "dir1": {
+                "nested.txt": "",
+            },
+            "file1.txt": "",
+        }),
+    )
+    .await;
+
+    let project = Project::test(fs.clone(), ["/root".as_ref()], cx).await;
+    let window = cx.add_window(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
+    let workspace = window
+        .read_with(cx, |mw, _| mw.workspace().clone())
+        .unwrap();
+    let cx = &mut VisualTestContext::from_window(window.into(), cx);
+    let panel = workspace.update_in(cx, ProjectPanel::new);
+    cx.run_until_parked();
+
+    let set_folder_settings = |cx: &mut VisualTestContext, folder_icons: bool, folder_arrows: bool| {
+        cx.update(|_, cx| {
+            cx.update_global::<SettingsStore, _>(|store, cx| {
+                store.update_user_settings(cx, |settings| {
+                    let project_panel = settings.project_panel.get_or_insert_default();
+                    project_panel.folder_icons = Some(folder_icons);
+                    project_panel.folder_arrows = Some(folder_arrows);
+                });
+            });
+        });
+        cx.run_until_parked();
+    };
+
+    // (folder_icons, folder_arrows) and the resulting expectations for directory rows.
+    for (folder_icons, folder_arrows) in
+        [(true, false), (true, true), (false, false), (false, true)]
+    {
+        set_folder_settings(cx, folder_icons, folder_arrows);
+
+        // Chevrons are shown when explicitly enabled, or as a fallback when folder icons
+        // are disabled (preserving the historical meaning of `folder_icons: false`).
+        let expect_chevron = folder_arrows || !folder_icons;
+        assert_eq!(
+            cx.read(|cx| ProjectPanelSettings::get_global(cx).show_folder_arrows()),
+            expect_chevron,
+            "show_folder_arrows() for folder_icons={folder_icons}, folder_arrows={folder_arrows}",
+        );
+
+        let mut saw_dir = false;
+        let mut saw_file = false;
+        panel.update_in(cx, |panel, window, cx| {
+            panel.for_each_visible_entry(0..50, window, cx, &mut |_, details, _, _| {
+                if details.kind.is_dir() {
+                    saw_dir = true;
+                    assert_eq!(
+                        details.chevron.is_some(),
+                        expect_chevron,
+                        "directory chevron for folder_icons={folder_icons}, folder_arrows={folder_arrows}: {details:?}",
+                    );
+                    assert_eq!(
+                        details.icon.is_some(),
+                        folder_icons,
+                        "directory icon for folder_icons={folder_icons}, folder_arrows={folder_arrows}: {details:?}",
+                    );
+                } else {
+                    saw_file = true;
+                    assert!(
+                        details.chevron.is_none(),
+                        "file rows never have a chevron: {details:?}",
+                    );
+                    // `file_icons` is left at its default of `true`.
+                    assert!(details.icon.is_some(), "file icon missing: {details:?}");
+                }
+            });
+        });
+        assert!(saw_dir && saw_file, "expected both a directory and a file row");
+    }
+}

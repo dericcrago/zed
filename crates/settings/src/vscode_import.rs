@@ -662,6 +662,7 @@ impl VsCodeSettings {
         skip_default(OutlinePanelSettingsContent {
             file_icons: self.read_bool("outline.icons"),
             folder_icons: self.read_bool("outline.icons"),
+            folder_arrows: None,
             git_status: self.read_bool("git.decorations.enabled"),
             ..Default::default()
         })
@@ -805,6 +806,7 @@ impl VsCodeSettings {
             entry_spacing: None,
             file_icons: None,
             folder_icons: None,
+            folder_arrows: None,
             git_status: self.read_bool("git.decorations.enabled"),
             hide_gitignore: self.read_bool("explorer.excludeGitIgnore"),
             hide_hidden: None,

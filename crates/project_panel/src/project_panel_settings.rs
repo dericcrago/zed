@@ -20,6 +20,7 @@ pub struct ProjectPanelSettings {
     pub entry_spacing: ProjectPanelEntrySpacing,
     pub file_icons: bool,
     pub folder_icons: bool,
+    pub folder_arrows: bool,
     pub git_status: bool,
     pub indent_size: f32,
     pub indent_guides: IndentGuidesSettings,
@@ -38,6 +39,17 @@ pub struct ProjectPanelSettings {
     pub sort_order: ProjectPanelSortOrder,
     pub diagnostic_badges: bool,
     pub git_status_indicator: bool,
+}
+
+impl ProjectPanelSettings {
+    /// Whether directories should display a disclosure arrow (chevron).
+    ///
+    /// True when `folder_arrows` is enabled, or when `folder_icons` is disabled — in the
+    /// latter case the chevron stands in for the hidden folder icon, preserving the
+    /// historical behavior of `folder_icons: false`.
+    pub fn show_folder_arrows(&self) -> bool {
+        self.folder_arrows || !self.folder_icons
+    }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -105,6 +117,7 @@ impl Settings for ProjectPanelSettings {
             entry_spacing: project_panel.entry_spacing.unwrap(),
             file_icons: project_panel.file_icons.unwrap(),
             folder_icons: project_panel.folder_icons.unwrap(),
+            folder_arrows: project_panel.folder_arrows.unwrap(),
             git_status: project_panel.git_status.unwrap()
                 && content
                     .git
