@@ -11,6 +11,7 @@ pub struct OutlinePanelSettings {
     pub dock: DockSide,
     pub file_icons: bool,
     pub folder_icons: bool,
+    pub folder_arrows: bool,
     pub git_status: bool,
     pub indent_size: f32,
     pub indent_guides: IndentGuidesSettings,
@@ -18,6 +19,17 @@ pub struct OutlinePanelSettings {
     pub auto_fold_dirs: bool,
     pub scrollbar: ScrollbarSettings,
     pub expand_outlines_with_depth: usize,
+}
+
+impl OutlinePanelSettings {
+    /// Whether directories should display a disclosure arrow (chevron).
+    ///
+    /// True when `folder_arrows` is enabled, or when `folder_icons` is disabled — in the
+    /// latter case the chevron stands in for the hidden folder icon, preserving the
+    /// historical behavior of `folder_icons: false`.
+    pub fn show_folder_arrows(&self) -> bool {
+        self.folder_arrows || !self.folder_icons
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -54,6 +66,7 @@ impl Settings for OutlinePanelSettings {
             dock: panel.dock.unwrap(),
             file_icons: panel.file_icons.unwrap(),
             folder_icons: panel.folder_icons.unwrap(),
+            folder_arrows: panel.folder_arrows.unwrap(),
             git_status: panel.git_status.unwrap()
                 && content
                     .git

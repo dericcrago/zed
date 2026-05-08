@@ -4621,7 +4621,7 @@ fn window_and_layout_page() -> SettingsPage {
 }
 
 fn panels_page() -> SettingsPage {
-    fn project_panel_section() -> [SettingsPageItem; 29] {
+    fn project_panel_section() -> [SettingsPageItem; 30] {
         [
             SettingsPageItem::SectionHeader("Project Panel"),
             SettingsPageItem::SettingItem(SettingItem {
@@ -4723,7 +4723,7 @@ fn panels_page() -> SettingsPage {
             }),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Folder Icons",
-                description: "Whether to show folder icons or chevrons for directories in the project panel.",
+                description: "Whether to show folder icons for directories in the project panel. When disabled, an expand/collapse arrow is shown instead.",
                 field: Box::new(SettingField {
                     json_path: Some("project_panel.folder_icons"),
                     pick: |settings_content| {
@@ -4738,6 +4738,28 @@ fn panels_page() -> SettingsPage {
                             .project_panel
                             .get_or_insert_default()
                             .folder_icons = value;
+                    },
+                }),
+                metadata: None,
+                files: USER,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                title: "Folder Arrows",
+                description: "Whether to also show an expand/collapse arrow next to directories in the project panel. Arrows are always shown when folder icons are disabled.",
+                field: Box::new(SettingField {
+                    json_path: Some("project_panel.folder_arrows"),
+                    pick: |settings_content| {
+                        settings_content
+                            .project_panel
+                            .as_ref()?
+                            .folder_arrows
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .project_panel
+                            .get_or_insert_default()
+                            .folder_arrows = value;
                     },
                 }),
                 metadata: None,
@@ -5290,7 +5312,7 @@ fn panels_page() -> SettingsPage {
         ]
     }
 
-    fn outline_panel_section() -> [SettingsPageItem; 11] {
+    fn outline_panel_section() -> [SettingsPageItem; 12] {
         [
             SettingsPageItem::SectionHeader("Outline Panel"),
             SettingsPageItem::SettingItem(SettingItem {
@@ -5366,7 +5388,7 @@ fn panels_page() -> SettingsPage {
             }),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Folder Icons",
-                description: "Whether to show folder icons or chevrons for directories in the outline panel.",
+                description: "Whether to show folder icons for directories in the outline panel. When disabled, an expand/collapse arrow is shown instead.",
                 field: Box::new(SettingField {
                     json_path: Some("outline_panel.folder_icons"),
                     pick: |settings_content| {
@@ -5381,6 +5403,28 @@ fn panels_page() -> SettingsPage {
                             .outline_panel
                             .get_or_insert_default()
                             .folder_icons = value;
+                    },
+                }),
+                metadata: None,
+                files: USER,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                title: "Folder Arrows",
+                description: "Whether to also show an expand/collapse arrow next to directories in the outline panel. Arrows are always shown when folder icons are disabled.",
+                field: Box::new(SettingField {
+                    json_path: Some("outline_panel.folder_arrows"),
+                    pick: |settings_content| {
+                        settings_content
+                            .outline_panel
+                            .as_ref()?
+                            .folder_arrows
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .outline_panel
+                            .get_or_insert_default()
+                            .folder_arrows = value;
                     },
                 }),
                 metadata: None,
@@ -5499,7 +5543,7 @@ fn panels_page() -> SettingsPage {
         ]
     }
 
-    fn git_panel_section() -> [SettingsPageItem; 15] {
+    fn git_panel_section() -> [SettingsPageItem; 16] {
         [
             SettingsPageItem::SectionHeader("Git Panel"),
             SettingsPageItem::SettingItem(SettingItem {
@@ -5661,7 +5705,7 @@ fn panels_page() -> SettingsPage {
             }),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Folder Icons",
-                description: "Whether to show folder icons or chevrons for directories in the git panel.",
+                description: "Whether to show folder icons for directories in the git panel. When disabled, an expand/collapse arrow is shown instead.",
                 field: Box::new(SettingField {
                     json_path: Some("git_panel.folder_icons"),
                     pick: |settings_content| {
@@ -5672,6 +5716,24 @@ fn panels_page() -> SettingsPage {
                             .git_panel
                             .get_or_insert_default()
                             .folder_icons = value;
+                    },
+                }),
+                metadata: None,
+                files: USER,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                title: "Folder Arrows",
+                description: "Whether to also show an expand/collapse arrow next to directories in the git panel. Arrows are always shown when folder icons are disabled.",
+                field: Box::new(SettingField {
+                    json_path: Some("git_panel.folder_arrows"),
+                    pick: |settings_content| {
+                        settings_content.git_panel.as_ref()?.folder_arrows.as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .git_panel
+                            .get_or_insert_default()
+                            .folder_arrows = value;
                     },
                 }),
                 metadata: None,

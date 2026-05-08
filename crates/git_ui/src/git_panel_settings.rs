@@ -22,6 +22,7 @@ pub struct GitPanelSettings {
     pub status_style: StatusStyle,
     pub file_icons: bool,
     pub folder_icons: bool,
+    pub folder_arrows: bool,
     pub scrollbar: ScrollbarSettings,
     pub fallback_branch_name: String,
     pub sort_by_path: bool,
@@ -31,6 +32,17 @@ pub struct GitPanelSettings {
     pub show_count_badge: bool,
     pub starts_open: bool,
     pub commit_title_max_length: usize,
+}
+
+impl GitPanelSettings {
+    /// Whether directories should display a disclosure arrow (chevron).
+    ///
+    /// True when `folder_arrows` is enabled, or when `folder_icons` is disabled — in the
+    /// latter case the chevron stands in for the hidden folder icon, preserving the
+    /// historical behavior of `folder_icons: false`.
+    pub fn show_folder_arrows(&self) -> bool {
+        self.folder_arrows || !self.folder_icons
+    }
 }
 
 #[derive(Default)]
@@ -63,6 +75,7 @@ impl Settings for GitPanelSettings {
             status_style: git_panel.status_style.unwrap(),
             file_icons: git_panel.file_icons.unwrap(),
             folder_icons: git_panel.folder_icons.unwrap(),
+            folder_arrows: git_panel.folder_arrows.unwrap(),
             scrollbar: ScrollbarSettings {
                 show: git_panel
                     .scrollbar
