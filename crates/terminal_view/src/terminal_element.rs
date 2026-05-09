@@ -42,7 +42,9 @@ pub struct LayoutState {
     hitbox: Hitbox,
     batched_text_runs: Vec<BatchedTextRun>,
     rects: Vec<LayoutRect>,
-    relative_highlighted_ranges: Vec<(RangeInclusive<AlacPoint>, Hsla)>,
+    /// `(range, color, is_block)` for each highlighted region. `is_block` is true for a
+    /// block (column) selection, which is drawn as a rectangle rather than a line-wrapped span.
+    relative_highlighted_ranges: Vec<(RangeInclusive<AlacPoint>, Hsla, bool)>,
     cursor: Option<CursorLayout>,
     ime_cursor_bounds: Option<Bounds<Pixels>>,
     background_color: Hsla,
@@ -1092,11 +1094,14 @@ impl Element for TerminalElement {
                 // searches, highlights to a single range representations
                 let mut relative_highlighted_ranges = Vec::new();
                 for search_match in search_matches {
-                    relative_highlighted_ranges.push((search_match, match_color))
+                    relative_highlighted_ranges.push((search_match, match_color, false))
                 }
                 if let Some(selection) = selection {
-                    relative_highlighted_ranges
-                        .push((selection.start..=selection.end, player_color.selection));
+                    relative_highlighted_ranges.push((
+                        selection.start..=selection.end,
+                        player_color.selection,
+                        selection.is_block,
+                    ));
                 }
 
                 // then have that representation be converted to the appropriate highlight data structure
@@ -1323,8 +1328,17 @@ impl Element for TerminalElement {
                 &layout.content_mode,
                 window,
             );
-            if window.modifiers().secondary()
-                && bounds.contains(&window.mouse_position())
+            let modifiers = window.modifiers();
+            let mouse_over_terminal = bounds.contains(&window.mouse_position());
+            // When the terminal program is reading mouse events a left drag is forwarded
+            // to it, and Shift is required to select instead. Block selection obeys the
+            // same rule, so only advertise it (with the crosshair) when it would apply.
+            let mouse_reporting = layout.mode.intersects(TermMode::MOUSE_MODE) && !modifiers.shift;
+            if modifiers.alt && modifiers.secondary() && !mouse_reporting && mouse_over_terminal {
+                // Cmd+Option (Ctrl+Alt elsewhere) starts a block (column) selection.
+                window.set_cursor_style(gpui::CursorStyle::Crosshair, &layout.hitbox);
+            } else if modifiers.secondary()
+                && mouse_over_terminal
                 && self.terminal_view.read(cx).hover.is_some()
             {
                 window.set_cursor_style(gpui::CursorStyle::PointingHand, &layout.hitbox);
@@ -1362,10 +1376,16 @@ impl Element for TerminalElement {
                         rect.paint(origin, &layout.dimensions, window);
                     }
 
-                    for (relative_highlighted_range, color) in &layout.relative_highlighted_ranges {
-                        if let Some((start_y, highlighted_range_lines)) =
-                            to_highlighted_range_lines(relative_highlighted_range, layout, origin)
-                        {
+                    for (relative_highlighted_range, color, is_block) in
+                        &layout.relative_highlighted_ranges
+                    {
+                        if let Some((start_y, highlighted_range_lines)) = to_highlighted_range_lines(
+                            relative_highlighted_range,
+                            *is_block,
+                            layout.display_offset,
+                            &layout.dimensions,
+                            origin,
+                        ) {
                             let corner_radius = if EditorSettings::get_global(cx).rounded_selection
                             {
                                 0.15 * layout.dimensions.line_height
@@ -1377,7 +1397,7 @@ impl Element for TerminalElement {
                                 line_height: layout.dimensions.line_height,
                                 lines: highlighted_range_lines,
                                 color: *color,
-                                corner_radius: corner_radius,
+                                corner_radius,
                             };
                             hr.paint(true, bounds, window);
                         }
@@ -1614,7 +1634,9 @@ pub fn is_blank(cell: &IndexedCell) -> bool {
 
 fn to_highlighted_range_lines(
     range: &RangeInclusive<AlacPoint>,
-    layout: &LayoutState,
+    is_block: bool,
+    display_offset: usize,
+    dimensions: &TerminalBounds,
     origin: Point<Pixels>,
 ) -> Option<(Pixels, Vec<HighlightedRangeLine>)> {
     // Step 1. Normalize the points to be viewport relative.
@@ -1635,46 +1657,49 @@ fn to_highlighted_range_lines(
     // of the grid data we should be looking at. But for the rendering step, we don't
     // want negatives. We want things relative to the 'viewport' (the area of the grid
     // which is currently shown according to the display offset)
-    let unclamped_start = AlacPoint::new(
-        range.start().line + layout.display_offset,
-        range.start().column,
-    );
-    let unclamped_end =
-        AlacPoint::new(range.end().line + layout.display_offset, range.end().column);
+    let unclamped_start = AlacPoint::new(range.start().line + display_offset, range.start().column);
+    let unclamped_end = AlacPoint::new(range.end().line + display_offset, range.end().column);
 
     // Step 2. Clamp range to viewport, and return None if it doesn't overlap
-    if unclamped_end.line.0 < 0 || unclamped_start.line.0 > layout.dimensions.num_lines() as i32 {
+    if unclamped_end.line.0 < 0 || unclamped_start.line.0 > dimensions.num_lines() as i32 {
         return None;
     }
 
     let clamped_start_line = unclamped_start.line.0.max(0) as usize;
-
-    let clamped_end_line = unclamped_end
-        .line
-        .0
-        .min(layout.dimensions.num_lines() as i32) as usize;
+    let clamped_end_line = unclamped_end.line.0.min(dimensions.num_lines() as i32) as usize;
 
     // Convert the start of the range to pixels
-    let start_y = origin.y + clamped_start_line as f32 * layout.dimensions.line_height;
+    let start_y = origin.y + clamped_start_line as f32 * dimensions.line_height;
 
     // Step 3. Expand ranges that cross lines into a collection of single-line ranges.
     //  (also convert to pixels)
     let mut highlighted_range_lines = Vec::new();
     for line in clamped_start_line..=clamped_end_line {
-        let mut line_start = 0;
-        let mut line_end = layout.dimensions.columns();
-
-        if line == clamped_start_line && unclamped_start.line.0 >= 0 {
-            line_start = unclamped_start.column.0;
-        }
-        if line == clamped_end_line && unclamped_end.line.0 <= layout.dimensions.num_lines() as i32
-        {
-            line_end = unclamped_end.column.0 + 1; // +1 for inclusive
-        }
+        // A block selection spans the same columns on every line. Alacritty's
+        // `SelectionRange` already orders the columns, so `start <= end` holds here.
+        // Otherwise the first and last lines are clipped to the selection's
+        // start/end columns and the lines in between span the full width.
+        let (line_start, line_end) = if is_block {
+            (unclamped_start.column.0, unclamped_end.column.0 + 1)
+        } else {
+            let line_start = if line == clamped_start_line && unclamped_start.line.0 >= 0 {
+                unclamped_start.column.0
+            } else {
+                0
+            };
+            let line_end = if line == clamped_end_line
+                && unclamped_end.line.0 <= dimensions.num_lines() as i32
+            {
+                unclamped_end.column.0 + 1 // +1 for inclusive
+            } else {
+                dimensions.columns()
+            };
+            (line_start, line_end)
+        };
 
         highlighted_range_lines.push(HighlightedRangeLine {
-            start_x: origin.x + line_start as f32 * layout.dimensions.cell_width,
-            end_x: origin.x + line_end as f32 * layout.dimensions.cell_width,
+            start_x: origin.x + line_start as f32 * dimensions.cell_width,
+            end_x: origin.x + line_end as f32 * dimensions.cell_width,
         });
     }
 
@@ -2480,5 +2505,64 @@ mod tests {
         // Negative: lines -7, -6, -5, -4
         assert_eq!(negative_filtered.first().unwrap().point.line, Line(-7));
         assert_eq!(negative_filtered.last().unwrap().point.line, Line(-4));
+    }
+
+    #[test]
+    fn test_to_highlighted_range_lines_block_selection() {
+        use terminal::alacritty_terminal::index::{Column, Line};
+
+        // 40 columns x 20 lines (cells 10px wide, lines 20px tall).
+        let dimensions = TerminalBounds::new(
+            px(20.),
+            px(10.),
+            Bounds {
+                origin: Point::default(),
+                size: size(px(400.), px(400.)),
+            },
+        );
+        let origin = Point::new(px(0.), px(0.));
+
+        // A drag from (line 0, col 5) to (line 2, col 10): every line is clipped to the
+        // same column span, unlike a regular selection where the interior lines are full width.
+        let range = AlacPoint::new(Line(0), Column(5))..=AlacPoint::new(Line(2), Column(10));
+        let (start_y, lines) =
+            to_highlighted_range_lines(&range, true, 0, &dimensions, origin).unwrap();
+        assert_eq!(start_y, px(0.));
+        assert_eq!(lines.len(), 3);
+        for line in &lines {
+            assert_eq!(line.start_x, px(50.)); // col 5 * 10px
+            assert_eq!(line.end_x, px(110.)); // (col 10 + 1) * 10px
+        }
+
+        // The same range as a non-block selection: the middle line spans the full width.
+        let (_, lines) = to_highlighted_range_lines(&range, false, 0, &dimensions, origin).unwrap();
+        assert_eq!(lines[0].start_x, px(50.));
+        assert_eq!(lines[1].end_x, px(400.)); // full width (40 cols * 10px)
+        assert_eq!(lines[2].end_x, px(110.));
+
+        // Scrolling shifts the highlight down by `display_offset` lines but leaves the
+        // column span untouched.
+        let (start_y, lines) =
+            to_highlighted_range_lines(&range, true, 3, &dimensions, origin).unwrap();
+        assert_eq!(start_y, px(60.)); // (0 + 3) * 20px
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0].start_x, px(50.));
+        assert_eq!(lines[0].end_x, px(110.));
+
+        // A block extending past the bottom of the viewport is clamped to the visible lines.
+        let tall = AlacPoint::new(Line(0), Column(2))..=AlacPoint::new(Line(40), Column(4));
+        let (_, lines) = to_highlighted_range_lines(&tall, true, 0, &dimensions, origin).unwrap();
+        assert_eq!(lines.len(), dimensions.num_lines() + 1);
+
+        // A block that begins in scrollback above the viewport is clamped to start at line 0.
+        let above = AlacPoint::new(Line(-4), Column(1))..=AlacPoint::new(Line(1), Column(3));
+        let (start_y, lines) =
+            to_highlighted_range_lines(&above, true, 0, &dimensions, origin).unwrap();
+        assert_eq!(start_y, px(0.));
+        assert_eq!(lines.len(), 2); // lines 0 and 1
+
+        // A block entirely above the viewport produces no highlight.
+        let offscreen = AlacPoint::new(Line(-8), Column(1))..=AlacPoint::new(Line(-2), Column(3));
+        assert!(to_highlighted_range_lines(&offscreen, true, 0, &dimensions, origin).is_none());
     }
 }
