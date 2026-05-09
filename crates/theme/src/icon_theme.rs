@@ -216,7 +216,7 @@ const FILE_SUFFIXES_BY_ICON_KEY: &[(&str, &[&str])] = &[
     ("prisma", &["prisma"]),
     ("puppet", &["pp"]),
     ("python", &["py"]),
-    ("r", &["r", "R"]),
+    ("r", &["r"]),
     ("react", &["cjsx", "ctsx", "jsx", "mjsx", "mtsx", "tsx"]),
     ("roc", &["roc"]),
     ("ruby", &["rb"]),
@@ -229,8 +229,7 @@ const FILE_SUFFIXES_BY_ICON_KEY: &[(&str, &[&str])] = &[
         "storage",
         &[
             "accdb", "csv", "dat", "db", "dbf", "dll", "fmp", "fp7", "frm", "gdb", "ib", "ldf",
-            "mdb", "mdf", "myd", "myi", "pdb", "RData", "rdata", "sav", "sdf", "sql", "sqlite",
-            "tsv",
+            "mdb", "mdf", "myd", "myi", "pdb", "rdata", "sav", "sdf", "sql", "sqlite", "tsv",
         ],
     ),
     (
@@ -404,13 +403,16 @@ const FILE_ICONS: &[(&str, &str)] = &[
 ];
 
 /// Returns a mapping of file associations to icon keys.
+///
+/// Keys are lowercased so icon lookups can be case-insensitive; callers in
+/// `file_icons` lowercase the file or directory name before looking it up.
 fn icon_keys_by_association(
     associations_by_icon_key: &[(&str, &[&str])],
 ) -> HashMap<String, String> {
     let mut icon_keys_by_association = HashMap::default();
     for (icon_key, associations) in associations_by_icon_key {
         for association in *associations {
-            icon_keys_by_association.insert(association.to_string(), icon_key.to_string());
+            icon_keys_by_association.insert(association.to_ascii_lowercase(), icon_key.to_string());
         }
     }
 
@@ -450,4 +452,29 @@ static DEFAULT_ICON_THEME: LazyLock<Arc<IconTheme>> = LazyLock::new(|| {
 /// Returns the default icon theme.
 pub fn default_icon_theme() -> Arc<IconTheme> {
     DEFAULT_ICON_THEME.clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_icon_theme_match_keys_are_lowercase() {
+        let icon_theme = default_icon_theme();
+        // The bundled tables use conventional casing (`Dockerfile`, `Chart.yaml`,
+        // ...); the constructed maps must lowercase them so `file_icons` matches
+        // case-insensitively.
+        assert!(icon_theme.file_stems.contains_key("dockerfile"));
+        for key in icon_theme
+            .file_stems
+            .keys()
+            .chain(icon_theme.file_suffixes.keys())
+        {
+            assert_eq!(
+                key,
+                &key.to_ascii_lowercase(),
+                "match key {key:?} is not lowercase"
+            );
+        }
+    }
 }
