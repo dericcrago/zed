@@ -207,6 +207,10 @@ Adjust scroll speed with:
 | Copy   | `Cmd+C` | `Ctrl+Shift+C` |
 | Paste  | `Cmd+V` | `Ctrl+Shift+V` |
 
+### Block Selection
+
+Hold `Cmd` and `Option` (`Ctrl` and `Alt` on Linux and Windows) and drag with the left mouse button to make a block (column) selection: a rectangular region covering the same columns on every line it spans. The pointer turns into a crosshair while the modifiers are held. When a terminal application is reading mouse events (for example `vim` or `tmux` with mouse support enabled), hold `Shift` as well, just as you would for a regular selection.
+
 ### Copy on Select
 
 Automatically copy selected text to the clipboard:

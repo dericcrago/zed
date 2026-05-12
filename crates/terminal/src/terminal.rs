@@ -1912,9 +1912,14 @@ impl Terminal {
             self.last_content.display_offset,
         );
 
+        // Cmd+Option (Ctrl+Alt elsewhere) on a left drag makes a block (column) selection,
+        // matching iTerm2, kitty and Ghostty.
+        let block_selection = e.modifiers.alt && e.modifiers.secondary();
+
         if e.button == MouseButton::Left
             && e.modifiers.secondary()
             && !self.mouse_mode(e.modifiers.shift)
+            && !block_selection
         {
             let term_lock = self.term.lock();
             self.mouse_down_hyperlink = terminal_hyperlinks::find_from_grid_point(
@@ -1947,6 +1952,7 @@ impl Terminal {
 
                     let selection_type = match e.click_count {
                         0 => return, //This is a release
+                        1 if block_selection => Some(SelectionType::Block),
                         1 => Some(SelectionType::Simple),
                         2 => Some(SelectionType::Semantic),
                         3 => Some(SelectionType::Lines),
@@ -3338,6 +3344,95 @@ mod tests {
                     .any(|event| matches!(event, InternalEvent::ProcessHyperlink(_, true))),
                 "Should have ProcessHyperlink event when dragging within hyperlink bounds"
             );
+        });
+    }
+
+    #[gpui::test]
+    async fn test_block_selection_modifiers(cx: &mut TestAppContext) {
+        let terminal = init_ctrl_click_hyperlink_test(cx, b"hello world\r\nfoo bar baz\r\n");
+
+        fn left_down_selection_type(
+            terminal: &mut Terminal,
+            cx: &mut Context<Terminal>,
+            modifiers: Modifiers,
+        ) -> Option<SelectionType> {
+            terminal.events.clear();
+            terminal.mouse_down(
+                &MouseDownEvent {
+                    button: MouseButton::Left,
+                    position: point(px(40.0), px(10.0)),
+                    modifiers,
+                    click_count: 1,
+                    first_mouse: true,
+                },
+                cx,
+            );
+            match terminal.events.back() {
+                Some(InternalEvent::SetSelection(Some((selection, _)))) => Some(selection.ty),
+                _ => None,
+            }
+        }
+
+        terminal.update(cx, |terminal, cx| {
+            // A plain left drag — or one with only Alt held — makes a regular (Simple) selection.
+            assert_eq!(
+                left_down_selection_type(terminal, cx, Modifiers::default()),
+                Some(SelectionType::Simple),
+            );
+            assert_eq!(
+                left_down_selection_type(
+                    terminal,
+                    cx,
+                    Modifiers {
+                        alt: true,
+                        ..Default::default()
+                    },
+                ),
+                Some(SelectionType::Simple),
+            );
+
+            // Cmd+Option (Ctrl+Alt on Linux/Windows) makes a block (column) selection.
+            assert_eq!(
+                left_down_selection_type(
+                    terminal,
+                    cx,
+                    Modifiers {
+                        alt: true,
+                        ..Modifiers::secondary_key()
+                    },
+                ),
+                Some(SelectionType::Block),
+            );
+        });
+    }
+
+    #[gpui::test]
+    async fn test_block_selection_does_not_intercept_hyperlinks(cx: &mut TestAppContext) {
+        // The hyperlink gesture is a bare Cmd/Ctrl + click; the block-selection gesture
+        // adds Option/Alt on top, so clicking a link with both held must start a block
+        // selection rather than be diverted into hyperlink handling.
+        let terminal = init_ctrl_click_hyperlink_test(cx, b"Visit https://zed.dev/ for more\r\n");
+
+        terminal.update(cx, |terminal, cx| {
+            terminal.mouse_down(
+                &MouseDownEvent {
+                    button: MouseButton::Left,
+                    position: point(px(80.0), px(10.0)), // over the URL
+                    modifiers: Modifiers {
+                        alt: true,
+                        ..Modifiers::secondary_key()
+                    },
+                    click_count: 1,
+                    first_mouse: true,
+                },
+                cx,
+            );
+            assert!(terminal.mouse_down_hyperlink.is_none());
+            assert!(matches!(
+                terminal.events.back(),
+                Some(InternalEvent::SetSelection(Some((selection, _))))
+                    if selection.ty == SelectionType::Block
+            ));
         });
     }
 
