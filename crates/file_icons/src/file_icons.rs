@@ -20,6 +20,8 @@ impl FileIcons {
     pub fn get_icon(path: &Path, cx: &App) -> Option<SharedString> {
         let this = Self::get(cx);
 
+        // Icon theme match keys are lowercased when the theme is built; pass a
+        // lowercased name here so matching is case-insensitive.
         let get_icon_from_suffix = |suffix: &str| -> Option<SharedString> {
             this.icon_theme
                 .file_stems
@@ -30,29 +32,32 @@ impl FileIcons {
         // TODO: Associate a type with the languages and have the file's language
         //       override these associations
 
-        if let Some(mut typ) = path.file_name().and_then(|typ| typ.to_str()) {
+        if let Some(file_name) = path.file_name().and_then(|name| name.to_str()) {
+            let file_name = file_name.to_ascii_lowercase();
             // check if file name is in suffixes
             // e.g. catch file named `eslint.config.js` instead of `.eslint.config.js`
-            let maybe_path = get_icon_from_suffix(typ);
+            let maybe_path = get_icon_from_suffix(&file_name);
             if maybe_path.is_some() {
                 return maybe_path;
             }
 
             // check if suffix based on first dot is in suffixes
             // e.g. consider `module.js` as suffix to angular's module file named `auth.module.js`
-            while let Some((_, suffix)) = typ.split_once('.') {
+            let mut remaining = file_name.as_str();
+            while let Some((_, suffix)) = remaining.split_once('.') {
                 let maybe_path = get_icon_from_suffix(suffix);
                 if maybe_path.is_some() {
                     return maybe_path;
                 }
-                typ = suffix;
+                remaining = suffix;
             }
         }
 
         // handle cases where the file extension is made up of multiple important
         // parts (e.g Component.stories.tsx) that refer to an alternative icon style
-        if let Some(suffix) = path.multiple_extensions() {
-            let maybe_path = get_icon_from_suffix(suffix.as_str());
+        if let Some(mut suffix) = path.multiple_extensions() {
+            suffix.make_ascii_lowercase();
+            let maybe_path = get_icon_from_suffix(&suffix);
             if maybe_path.is_some() {
                 return maybe_path;
             }
@@ -61,7 +66,7 @@ impl FileIcons {
         // primary case: check if the files extension or the hidden file name
         // matches some icon path
         if let Some(suffix) = path.extension_or_hidden_file_name() {
-            let maybe_path = get_icon_from_suffix(suffix);
+            let maybe_path = get_icon_from_suffix(&suffix.to_ascii_lowercase());
             if maybe_path.is_some() {
                 return maybe_path;
             }
@@ -73,7 +78,7 @@ impl FileIcons {
         // for a normal supported extension e.g. `.data.json` -> `json`
         let extension = path.extension().and_then(|ext| ext.to_str());
         if let Some(extension) = extension {
-            let maybe_path = get_icon_from_suffix(extension);
+            let maybe_path = get_icon_from_suffix(&extension.to_ascii_lowercase());
             if maybe_path.is_some() {
                 return maybe_path;
             }
@@ -110,7 +115,9 @@ impl FileIcons {
                 return None;
             }
 
-            let directory_icons = icon_theme.named_directory_icons.get(name)?;
+            let directory_icons = icon_theme
+                .named_directory_icons
+                .get(&name.to_ascii_lowercase())?;
 
             if expanded {
                 directory_icons.expanded.clone()
@@ -162,5 +169,41 @@ impl FileIcons {
             Self::default_icon_theme(cx)
                 .and_then(|icon_theme| get_chevron_icon(&icon_theme, expanded))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::TestAppContext;
+
+    /// Asserts every spelling of `names` resolves to the `icon_type` icon.
+    #[track_caller]
+    fn assert_resolves_to(icon_type: &str, names: &[&str], cx: &App) {
+        let expected = FileIcons::get(cx).get_icon_for_type(icon_type, cx);
+        assert!(
+            expected.is_some(),
+            "no `{icon_type}` icon in the default theme"
+        );
+        for name in names {
+            assert_eq!(
+                FileIcons::get_icon(Path::new(name), cx),
+                expected,
+                "wrong icon for {name:?}"
+            );
+        }
+    }
+
+    #[gpui::test]
+    fn icon_matching_is_case_insensitive(cx: &mut TestAppContext) {
+        cx.update(|cx| {
+            theme::init(theme::LoadThemes::JustBase, cx);
+            // Stem match: the bundled theme keys `Dockerfile` with conventional casing.
+            assert_resolves_to("docker", &["Dockerfile", "dockerfile", "DOCKERFILE"], cx);
+            // Extension match.
+            assert_resolves_to("rust", &["main.rs", "main.RS", "MAIN.Rs"], cx);
+            // Multi-part suffix match: `Chart.yaml` resolves to the Helm icon.
+            assert_resolves_to("helm", &["Chart.yaml", "chart.yaml", "CHART.YAML"], cx);
+        });
     }
 }

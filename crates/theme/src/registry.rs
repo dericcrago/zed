@@ -264,17 +264,29 @@ impl ThemeRegistry {
 
         let mut state = self.state.write();
         for icon_theme in icon_theme_family.themes {
+            // Normalize match keys to lowercase so icon lookups are
+            // case-insensitive, matching how `default_icon_theme` builds its maps.
             let mut file_stems = default_icon_theme.file_stems.clone();
-            file_stems.extend(icon_theme.file_stems);
+            file_stems.extend(
+                icon_theme
+                    .file_stems
+                    .into_iter()
+                    .map(|(key, value)| (key.to_ascii_lowercase(), value)),
+            );
 
             let mut file_suffixes = default_icon_theme.file_suffixes.clone();
-            file_suffixes.extend(icon_theme.file_suffixes);
+            file_suffixes.extend(
+                icon_theme
+                    .file_suffixes
+                    .into_iter()
+                    .map(|(key, value)| (key.to_ascii_lowercase(), value)),
+            );
 
             let mut named_directory_icons = default_icon_theme.named_directory_icons.clone();
             named_directory_icons.extend(icon_theme.named_directory_icons.into_iter().map(
                 |(key, value)| {
                     (
-                        key,
+                        key.to_ascii_lowercase(),
                         DirectoryIcons {
                             collapsed: value.collapsed.map(resolve_icon_path),
                             expanded: value.expanded.map(resolve_icon_path),
@@ -327,5 +339,42 @@ impl ThemeRegistry {
 impl Default for ThemeRegistry {
     fn default() -> Self {
         Self::new(Box::new(()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn load_icon_theme_lowercases_match_keys() -> Result<()> {
+        let registry = ThemeRegistry::default();
+        let icon_theme_family: IconThemeFamilyContent = serde_json::from_value(json!({
+            "name": "Test Family",
+            "author": "Test",
+            "themes": [{
+                "name": "Test Icons",
+                "appearance": "dark",
+                "file_stems": { "MyStem": "StemIcon" },
+                "file_suffixes": { "MySuffix": "SuffixIcon" },
+                "named_directory_icons": {
+                    "Components": { "collapsed": "collapsed.svg", "expanded": "expanded.svg" }
+                }
+            }]
+        }))?;
+        registry.load_icon_theme(icon_theme_family, Path::new("/icons"))?;
+
+        let icon_theme = registry.get_icon_theme("Test Icons")?;
+        assert!(icon_theme.file_stems.contains_key("mystem"));
+        assert!(!icon_theme.file_stems.contains_key("MyStem"));
+        assert!(icon_theme.file_suffixes.contains_key("mysuffix"));
+        assert!(icon_theme.named_directory_icons.contains_key("components"));
+        // Values (icon-type references) keep their original casing.
+        assert_eq!(
+            icon_theme.file_stems.get("mystem"),
+            Some(&"StemIcon".to_string())
+        );
+        Ok(())
     }
 }
